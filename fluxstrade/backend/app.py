@@ -62,6 +62,11 @@ def create_app() -> Flask:
                 "client_id_masked": masked_client,
                 "legacy_app_id_enabled": app.config.get("ENABLE_DERIV_LEGACY_APP_ID", False),
                 "legacy_app_id_masked": masked_legacy_app_id,
+                "deriv_app_id_masked": (
+                    f"{app.config['DERIV_APP_ID'][:6]}...{app.config['DERIV_APP_ID'][-4:]}"
+                    if len(app.config.get("DERIV_APP_ID", "")) > 10
+                    else app.config.get("DERIV_APP_ID", "")
+                ),
             }
         )
 
@@ -100,13 +105,14 @@ def create_app() -> Flask:
             params["app_id"] = authorize_app_id
         auth_url = f"{app.config['DERIV_AUTH_URL']}?{urlencode(params)}"
         app.logger.info(
-            "[%s] login prepared frontend=%s redirect_uri=%s scope=%s state_len=%s challenge_len=%s",
+            "[%s] login prepared frontend=%s redirect_uri=%s scope=%s state_len=%s challenge_len=%s app_id_present=%s",
             _rid(),
             app.config["FRONTEND_URL"],
             app.config["DERIV_REDIRECT_URI"],
             app.config["DERIV_OAUTH_SCOPE"],
             len(state),
             len(code_challenge),
+            "app_id" in params,
         )
         app.logger.info("[%s] redirecting to Deriv auth URL=%s", _rid(), auth_url)
         return redirect(auth_url)
