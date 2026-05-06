@@ -82,6 +82,10 @@ def create_app() -> Flask:
             "code_challenge": code_challenge,
             "code_challenge_method": "S256",
         }
+        # Deriv docs mark app_id as optional legacy support. Including it when present
+        # helps route users correctly across mixed legacy/new account setups.
+        if app.config.get("DERIV_APP_ID"):
+            params["app_id"] = app.config["DERIV_APP_ID"]
         auth_url = f"{app.config['DERIV_AUTH_URL']}?{urlencode(params)}"
         app.logger.info(
             "[%s] login prepared frontend=%s redirect_uri=%s scope=%s state_len=%s challenge_len=%s",
@@ -94,6 +98,34 @@ def create_app() -> Flask:
         )
         app.logger.info("[%s] redirecting to Deriv auth URL=%s", _rid(), auth_url)
         return redirect(auth_url)
+
+    @app.get("/api/debug/login-url")
+    def debug_login_url():
+        code_verifier = generate_code_verifier()
+        code_challenge = generate_code_challenge(code_verifier)
+        state = generate_state()
+
+        params = {
+            "response_type": "code",
+            "client_id": app.config["DERIV_CLIENT_ID"],
+            "redirect_uri": app.config["DERIV_REDIRECT_URI"],
+            "scope": app.config["DERIV_OAUTH_SCOPE"],
+            "state": state,
+            "code_challenge": code_challenge,
+            "code_challenge_method": "S256",
+        }
+        if app.config.get("DERIV_APP_ID"):
+            params["app_id"] = app.config["DERIV_APP_ID"]
+
+        return jsonify(
+            {
+                "auth_url": f"{app.config['DERIV_AUTH_URL']}?{urlencode(params)}",
+                "redirect_uri": app.config["DERIV_REDIRECT_URI"],
+                "frontend_url": app.config["FRONTEND_URL"],
+                "client_id_len": len(app.config["DERIV_CLIENT_ID"] or ""),
+                "app_id_len": len(app.config["DERIV_APP_ID"] or ""),
+            }
+        )
 
     @app.get("/api/callback")
     def callback():
