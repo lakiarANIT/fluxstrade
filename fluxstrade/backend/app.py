@@ -94,13 +94,10 @@ def create_app() -> Flask:
             "code_challenge": code_challenge,
             "code_challenge_method": "S256",
         }
-        # Only send app_id for legacy mixed-routing integrations.
-        if app.config.get("ENABLE_DERIV_LEGACY_APP_ID"):
-            legacy_app_id = app.config.get("DERIV_LEGACY_APP_ID", "")
-            if legacy_app_id:
-                params["app_id"] = legacy_app_id
-            else:
-                app.logger.warning("[%s] legacy app_id enabled but DERIV_LEGACY_APP_ID is empty", _rid())
+        # Deriv may require app_id on authorize requests depending on app setup.
+        authorize_app_id = _resolve_authorize_app_id(app)
+        if authorize_app_id:
+            params["app_id"] = authorize_app_id
         auth_url = f"{app.config['DERIV_AUTH_URL']}?{urlencode(params)}"
         app.logger.info(
             "[%s] login prepared frontend=%s redirect_uri=%s scope=%s state_len=%s challenge_len=%s",
@@ -129,8 +126,9 @@ def create_app() -> Flask:
             "code_challenge": code_challenge,
             "code_challenge_method": "S256",
         }
-        if app.config.get("ENABLE_DERIV_LEGACY_APP_ID") and app.config.get("DERIV_LEGACY_APP_ID"):
-            params["app_id"] = app.config["DERIV_LEGACY_APP_ID"]
+        authorize_app_id = _resolve_authorize_app_id(app)
+        if authorize_app_id:
+            params["app_id"] = authorize_app_id
 
         return jsonify(
             {
@@ -317,6 +315,13 @@ def _rid() -> str:
 
 def _looks_like_pat(value: str) -> bool:
     return isinstance(value, str) and value.lower().startswith("pat_")
+
+def _resolve_authorize_app_id(app: Flask) -> str:
+    if app.config.get("ENABLE_DERIV_LEGACY_APP_ID"):
+        legacy_app_id = app.config.get("DERIV_LEGACY_APP_ID", "")
+        return legacy_app_id.strip() if isinstance(legacy_app_id, str) else ""
+    app_id = app.config.get("DERIV_APP_ID", "")
+    return app_id.strip() if isinstance(app_id, str) else ""
 
 
 app = create_app()
