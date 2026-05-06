@@ -15,7 +15,7 @@ Set these Render environment variables:
 
 ```env
 FLASK_ENV=production
-FLASK_SECRET_KEY=replace-with-a-long-random-secret
+FLASK_SECRET_KEY=whdhfhjsjjdy7ehjfjjjfjjjdkkskks
 SESSION_FILE_DIR=/tmp/fluxstrade_sessions
 SESSION_COOKIE_SAMESITE=None
 SESSION_COOKIE_SECURE=true
