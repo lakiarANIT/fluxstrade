@@ -41,6 +41,24 @@ def create_app() -> Flask:
     def health():
         return jsonify({"ok": True})
 
+    @app.get("/api/debug/oauth-config")
+    def debug_oauth_config():
+        client_id = app.config["DERIV_CLIENT_ID"]
+        masked_client = f"{client_id[:6]}...{client_id[-4:]}" if len(client_id) > 10 else client_id
+        return jsonify(
+            {
+                "frontend_url": app.config["FRONTEND_URL"],
+                "redirect_uri": app.config["DERIV_REDIRECT_URI"],
+                "auth_url": app.config["DERIV_AUTH_URL"],
+                "token_url": app.config["DERIV_TOKEN_URL"],
+                "scope": app.config["DERIV_OAUTH_SCOPE"],
+                "cors_origins": app.config["CORS_ORIGINS"],
+                "session_cookie_samesite": app.config["SESSION_COOKIE_SAMESITE"],
+                "session_cookie_secure": app.config["SESSION_COOKIE_SECURE"],
+                "client_id_masked": masked_client,
+            }
+        )
+
     @app.get("/api/login")
     def login():
         if not app.config["DERIV_CLIENT_ID"]:
@@ -74,7 +92,7 @@ def create_app() -> Flask:
             len(state),
             len(code_challenge),
         )
-        app.logger.debug("[%s] redirecting to Deriv auth URL=%s", _rid(), auth_url)
+        app.logger.info("[%s] redirecting to Deriv auth URL=%s", _rid(), auth_url)
         return redirect(auth_url)
 
     @app.get("/api/callback")
@@ -239,7 +257,8 @@ def _configure_logging(app: Flask):
         )
         handler.setFormatter(formatter)
         logger.addHandler(handler)
-    logger.setLevel(logging.INFO)
+    level_name = app.config.get("LOG_LEVEL", "INFO")
+    logger.setLevel(getattr(logging, level_name, logging.INFO))
     app.logger.handlers = logger.handlers
     app.logger.setLevel(logger.level)
     app.logger.propagate = False

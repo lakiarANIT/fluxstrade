@@ -29,3 +29,4 @@ class Config:
     DERIV_API_BASE_URL = os.getenv("DERIV_API_BASE_URL", "https://api.derivws.com").rstrip("/")
     DERIV_OAUTH_SCOPE = os.getenv("DERIV_OAUTH_SCOPE", "trade account_manage")
     REQUEST_TIMEOUT = float(os.getenv("REQUEST_TIMEOUT", "15"))
+    LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
