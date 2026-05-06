@@ -23,6 +23,8 @@ class Config:
 
     DERIV_CLIENT_ID = os.getenv("DERIV_CLIENT_ID", "")
     DERIV_APP_ID = os.getenv("DERIV_APP_ID") or DERIV_CLIENT_ID
+    DERIV_LEGACY_APP_ID = os.getenv("DERIV_LEGACY_APP_ID", "").strip()
+    ENABLE_DERIV_LEGACY_APP_ID = os.getenv("ENABLE_DERIV_LEGACY_APP_ID", "false").lower() == "true"
     DERIV_REDIRECT_URI = os.getenv("DERIV_REDIRECT_URI", "http://localhost:5000/api/callback")
     DERIV_AUTH_URL = os.getenv("DERIV_AUTH_URL", "https://auth.deriv.com/oauth2/auth")
     DERIV_TOKEN_URL = os.getenv("DERIV_TOKEN_URL", "https://auth.deriv.com/oauth2/token")

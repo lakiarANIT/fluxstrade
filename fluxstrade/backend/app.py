@@ -45,6 +45,10 @@ def create_app() -> Flask:
     def debug_oauth_config():
         client_id = app.config["DERIV_CLIENT_ID"]
         masked_client = f"{client_id[:6]}...{client_id[-4:]}" if len(client_id) > 10 else client_id
+        legacy_app_id = app.config.get("DERIV_LEGACY_APP_ID", "")
+        masked_legacy_app_id = (
+            f"{legacy_app_id[:6]}...{legacy_app_id[-4:]}" if len(legacy_app_id) > 10 else legacy_app_id
+        )
         return jsonify(
             {
                 "frontend_url": app.config["FRONTEND_URL"],
@@ -56,6 +60,8 @@ def create_app() -> Flask:
                 "session_cookie_samesite": app.config["SESSION_COOKIE_SAMESITE"],
                 "session_cookie_secure": app.config["SESSION_COOKIE_SECURE"],
                 "client_id_masked": masked_client,
+                "legacy_app_id_enabled": app.config.get("ENABLE_DERIV_LEGACY_APP_ID", False),
+                "legacy_app_id_masked": masked_legacy_app_id,
             }
         )
 
@@ -64,6 +70,12 @@ def create_app() -> Flask:
         if not app.config["DERIV_CLIENT_ID"]:
             app.logger.error("[%s] DERIV_CLIENT_ID missing", _rid())
             return api_error("DERIV_CLIENT_ID is not configured.", 500)
+        if _looks_like_pat(app.config["DERIV_CLIENT_ID"]):
+            app.logger.error("[%s] DERIV_CLIENT_ID is a PAT token; OAuth requires a client_id", _rid())
+            return api_error("Invalid DERIV_CLIENT_ID: looks like a PAT token, not an OAuth client ID.", 500)
+        if _looks_like_pat(app.config.get("DERIV_APP_ID", "")):
+            app.logger.error("[%s] DERIV_APP_ID is a PAT token; Deriv-App-ID must be an app ID", _rid())
+            return api_error("Invalid DERIV_APP_ID: looks like a PAT token, not an app ID.", 500)
 
         code_verifier = generate_code_verifier()
         code_challenge = generate_code_challenge(code_verifier)
@@ -82,10 +94,13 @@ def create_app() -> Flask:
             "code_challenge": code_challenge,
             "code_challenge_method": "S256",
         }
-        # Deriv docs mark app_id as optional legacy support. Including it when present
-        # helps route users correctly across mixed legacy/new account setups.
-        if app.config.get("DERIV_APP_ID"):
-            params["app_id"] = app.config["DERIV_APP_ID"]
+        # Only send app_id for legacy mixed-routing integrations.
+        if app.config.get("ENABLE_DERIV_LEGACY_APP_ID"):
+            legacy_app_id = app.config.get("DERIV_LEGACY_APP_ID", "")
+            if legacy_app_id:
+                params["app_id"] = legacy_app_id
+            else:
+                app.logger.warning("[%s] legacy app_id enabled but DERIV_LEGACY_APP_ID is empty", _rid())
         auth_url = f"{app.config['DERIV_AUTH_URL']}?{urlencode(params)}"
         app.logger.info(
             "[%s] login prepared frontend=%s redirect_uri=%s scope=%s state_len=%s challenge_len=%s",
@@ -114,8 +129,8 @@ def create_app() -> Flask:
             "code_challenge": code_challenge,
             "code_challenge_method": "S256",
         }
-        if app.config.get("DERIV_APP_ID"):
-            params["app_id"] = app.config["DERIV_APP_ID"]
+        if app.config.get("ENABLE_DERIV_LEGACY_APP_ID") and app.config.get("DERIV_LEGACY_APP_ID"):
+            params["app_id"] = app.config["DERIV_LEGACY_APP_ID"]
 
         return jsonify(
             {
@@ -298,6 +313,10 @@ def _configure_logging(app: Flask):
 
 def _rid() -> str:
     return getattr(g, "request_id", "no-request-id")
+
+
+def _looks_like_pat(value: str) -> bool:
+    return isinstance(value, str) and value.lower().startswith("pat_")
 
 
 app = create_app()
