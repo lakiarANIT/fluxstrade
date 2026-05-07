@@ -105,6 +105,10 @@ export default function Home() {
     }
   }
 
+  function loginWithDeriv() {
+    window.location.href = `${API_BASE_URL}/api/login`;
+  }
+
   async function logout() {
     setLoggingOut(true);
     setError(null);
@@ -164,17 +168,29 @@ export default function Home() {
             <div className="flex flex-col justify-center gap-4">
               <h2 className="text-2xl font-bold text-ink">Connect your Deriv account</h2>
               <p className="max-w-2xl text-base leading-7 text-slate-600">
-                Paste a Deriv API token from your account settings to view Demo and Real Options
-                trading account balances in one private dashboard.
+                Login with Deriv using the configured app client ID, or paste a user API token from
+                Deriv account settings to view Demo and Real Options trading account balances.
               </p>
               <p className="max-w-2xl rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900">
-                Only enter tokens you are authorised to use. Tokens with Trade, Payments, or Admin
-                scopes can control sensitive account actions.
+                Do not paste the app/client ID into the token field. Tokens with Trade, Payments, or
+                Admin scopes can control sensitive account actions.
               </p>
             </div>
             <form onSubmit={connectWithToken} className="flex flex-col justify-center gap-3">
+              <button
+                type="button"
+                onClick={loginWithDeriv}
+                className="inline-flex min-h-12 w-full items-center justify-center rounded-md bg-coral px-6 py-3 text-base font-bold text-white shadow-soft transition hover:bg-[#f25555]"
+              >
+                Login with Deriv
+              </button>
+              <div className="flex items-center gap-3 py-1">
+                <span className="h-px flex-1 bg-slate-200" />
+                <span className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">or</span>
+                <span className="h-px flex-1 bg-slate-200" />
+              </div>
               <label htmlFor="deriv-token" className="text-sm font-bold text-ink">
-                Deriv API token
+                User API token
               </label>
               <input
                 id="deriv-token"

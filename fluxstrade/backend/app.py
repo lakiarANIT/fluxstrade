@@ -250,6 +250,11 @@ def create_app() -> Flask:
         access_token = str(payload.get("token") or "").strip()
         if not access_token:
             return api_error("Enter a Deriv API token.", 400)
+        if _matches_configured_app_identifier(access_token, app):
+            return api_error(
+                "That looks like the Deriv app/client ID, not a user API token. Use Login with Deriv, or paste a token created in the user's Deriv account settings.",
+                400,
+            )
 
         try:
             accounts = fetch_accounts(access_token)
@@ -261,6 +266,11 @@ def create_app() -> Flask:
                 exc.details,
             )
             if exc.status_code in (401, 403):
+                if _is_invalid_token_format(exc.details):
+                    return api_error(
+                        "Deriv says this is not a valid API token format. Use Login with Deriv for OAuth, or paste a user API token from Deriv account settings.",
+                        401,
+                    )
                 return api_error("Deriv rejected this token. Check that it is valid and has the required scopes.", 401)
             return handle_deriv_error(exc)
 
@@ -367,6 +377,23 @@ def _rid() -> str:
 
 def _looks_like_pat(value: str) -> bool:
     return isinstance(value, str) and value.lower().startswith("pat_")
+
+
+def _matches_configured_app_identifier(value: str, app: Flask) -> bool:
+    configured_values = {
+        str(app.config.get("DERIV_CLIENT_ID", "")).strip(),
+        str(app.config.get("DERIV_APP_ID", "")).strip(),
+    }
+    return bool(value and value in configured_values)
+
+
+def _is_invalid_token_format(details) -> bool:
+    if isinstance(details, str):
+        return "invalid token format" in details.lower()
+    if isinstance(details, dict):
+        values = [str(value).lower() for value in details.values()]
+        return any("invalid token format" in value for value in values)
+    return False
 
 
 def _normalize_oauth_scope(raw_scope: str) -> str:
