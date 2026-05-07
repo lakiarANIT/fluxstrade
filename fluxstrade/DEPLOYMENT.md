@@ -1,6 +1,6 @@
 # Fluxstrade Deployment
 
-Deploy the backend first, then the frontend. Deriv will not accept localhost redirect URLs for production apps, so the OAuth callback must use your deployed backend URL.
+Deploy the backend first, then the frontend. The main login flow uses a client-provided Deriv API token, so production only needs a backend URL, a frontend URL, and a Deriv app ID for API calls.
 
 ## 1. Deploy Backend To Render
 
@@ -23,13 +23,10 @@ SESSION_COOKIE_SECURE=true
 FRONTEND_URL=https://your-vercel-app.vercel.app
 CORS_ORIGINS=https://your-vercel-app.vercel.app
 
-DERIV_CLIENT_ID=your_deriv_oauth_app_id
-DERIV_APP_ID=your_deriv_oauth_app_id
-DERIV_REDIRECT_URI=https://your-render-service.onrender.com/api/callback
+DERIV_APP_ID=your_deriv_app_id
 DERIV_AUTH_URL=https://auth.deriv.com/oauth2/auth
 DERIV_TOKEN_URL=https://auth.deriv.com/oauth2/token
 DERIV_API_BASE_URL=https://api.derivws.com
-DERIV_OAUTH_SCOPE=trade account_manage
 ```
 
 After Render deploys, test:
@@ -40,27 +37,7 @@ https://your-render-service.onrender.com/api/health
 
 ## 2. Configure Deriv
 
-In the Deriv developer dashboard, register or update your OAuth app.
-
-Use this Redirect URL exactly:
-
-```text
-https://your-render-service.onrender.com/api/callback
-```
-
-Enable these scopes:
-
-```text
-trade
-account_manage
-```
-
-The app/application ID from Deriv is used as both:
-
-```env
-DERIV_CLIENT_ID=your_deriv_oauth_app_id
-DERIV_APP_ID=your_deriv_oauth_app_id
-```
+Create or choose a Deriv app ID and set it as `DERIV_APP_ID`. Clients create API tokens in their own Deriv account settings, choose the scopes they want to allow, and paste the token into Fluxstrade.
 
 ## 3. Deploy Frontend To Vercel
 
@@ -92,13 +69,11 @@ Redeploy the Render backend after changing these values.
 
 ## 5. Test Production Login
 
-Open your Vercel app and click Login with Deriv.
+Open your Vercel app and paste a Deriv API token.
 
 Expected flow:
 
-1. Vercel frontend sends you to Render `/api/login`.
-2. Render sends you to Deriv OAuth.
-3. Deriv redirects back to Render `/api/callback`.
-4. Render stores the token in its server-side session.
-5. Render redirects you to the Vercel frontend.
-6. The frontend calls Render `/api/me` and shows Demo and Real balances.
+1. Vercel frontend posts the token to Render `/api/token-login`.
+2. Render validates the token by fetching Deriv accounts.
+3. Render stores the token in its server-side session.
+4. The frontend shows Demo and Real balances.

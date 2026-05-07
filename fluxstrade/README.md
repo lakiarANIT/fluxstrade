@@ -1,6 +1,6 @@
 # Fluxstrade
 
-Fluxstrade is a small full-stack monorepo for Deriv OAuth2 login with PKCE. The Flask backend owns the OAuth flow and stores the Deriv access token in a server-side filesystem session. The Next.js frontend only talks to the backend and displays Demo and Real account balances.
+Fluxstrade is a small full-stack monorepo for viewing Deriv Demo and Real account balances. Clients paste a Deriv API token into the Next.js frontend, and the Flask backend validates it with Deriv before storing it in a server-side filesystem session.
 
 ## Stack
 
@@ -18,40 +18,35 @@ Fluxstrade is a small full-stack monorepo for Deriv OAuth2 login with PKCE. The 
 
 2. Fill in:
 
-   - `DERIV_CLIENT_ID`
    - `DERIV_APP_ID`
    - `FLASK_SECRET_KEY`
-   - `DERIV_REDIRECT_URI`
 
-3. In the Deriv app settings, register this callback URL exactly:
-
-   ```text
-   http://localhost:5000/api/callback
-   ```
-
-4. Start both services:
+3. Start both services:
 
    ```bash
    docker compose up --build
    ```
 
-5. Open:
+4. Open:
 
    ```text
    http://localhost:3000
    ```
 
+5. Paste a Deriv API token in the app UI with enough scope to read account information.
+
 ## Routes
 
-- `GET /api/login`: starts Deriv OAuth2 login with PKCE
-- `GET /api/callback`: validates state, exchanges authorization code, stores token in the backend session, redirects to frontend
+- `POST /api/token-login`: validates a pasted Deriv API token, stores it in the backend session, and returns grouped accounts
 - `GET /api/me`: returns authenticated user state and grouped accounts
 - `GET /api/accounts`: returns grouped Demo and Real accounts with balances
 - `POST /api/logout`: clears the server session
 
 ## Notes
 
-- The Deriv access token is never sent to the browser.
+- The pasted Deriv token is sent to the backend once during connection and is not returned to the browser.
+- Do not put client/user API tokens in `.env`. `DERIV_CLIENT_ID` is only for the optional OAuth redirect fallback.
+- Only use tokens you are authorised to use. Tokens with Trade, Payments, or Admin scopes can control sensitive account actions.
 - CORS is configured for `http://localhost:3000` and supports credentials.
 - Account balances are read from Deriv's Options accounts REST endpoint:
   `GET https://api.derivws.com/trading/v1/options/accounts`.

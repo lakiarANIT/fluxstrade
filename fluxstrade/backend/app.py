@@ -90,18 +90,26 @@ def create_app() -> Flask:
         session["oauth_state"] = state
         session["code_verifier"] = code_verifier
 
+        oauth_scope = _normalize_oauth_scope(app.config["DERIV_OAUTH_SCOPE"])
+        if not oauth_scope:
+            app.logger.error("[%s] Invalid DERIV_OAUTH_SCOPE=%s", _rid(), app.config["DERIV_OAUTH_SCOPE"])
+            return api_error("Invalid DERIV_OAUTH_SCOPE. Use 'trade' or 'admin'.", 500)
+
         params = {
             "response_type": "code",
             "client_id": app.config["DERIV_CLIENT_ID"],
             "redirect_uri": app.config["DERIV_REDIRECT_URI"],
-            "scope": app.config["DERIV_OAUTH_SCOPE"],
+            "scope": oauth_scope,
             "state": state,
             "code_challenge": code_challenge,
             "code_challenge_method": "S256",
         }
-        # Deriv may require app_id on authorize requests depending on app setup.
+        # Only legacy OAuth setups use a separate numeric app_id on authorize requests.
         authorize_app_id = _resolve_authorize_app_id(app)
         if authorize_app_id:
+            if not authorize_app_id.isdigit():
+                app.logger.error("[%s] Invalid legacy app_id format: expected numeric app_id", _rid())
+                return api_error("Invalid DERIV_LEGACY_APP_ID: expected numeric legacy app ID.", 500)
             params["app_id"] = authorize_app_id
         auth_url = f"{app.config['DERIV_AUTH_URL']}?{urlencode(params)}"
         app.logger.info(
@@ -109,7 +117,7 @@ def create_app() -> Flask:
             _rid(),
             app.config["FRONTEND_URL"],
             app.config["DERIV_REDIRECT_URI"],
-            app.config["DERIV_OAUTH_SCOPE"],
+            oauth_scope,
             len(state),
             len(code_challenge),
             "app_id" in params,
@@ -127,7 +135,7 @@ def create_app() -> Flask:
             "response_type": "code",
             "client_id": app.config["DERIV_CLIENT_ID"],
             "redirect_uri": app.config["DERIV_REDIRECT_URI"],
-            "scope": app.config["DERIV_OAUTH_SCOPE"],
+            "scope": _normalize_oauth_scope(app.config["DERIV_OAUTH_SCOPE"]) or app.config["DERIV_OAUTH_SCOPE"],
             "state": state,
             "code_challenge": code_challenge,
             "code_challenge_method": "S256",
@@ -236,6 +244,44 @@ def create_app() -> Flask:
             }
         )
 
+    @app.post("/api/token-login")
+    def token_login():
+        payload = request.get_json(silent=True) or {}
+        access_token = str(payload.get("token") or "").strip()
+        if not access_token:
+            return api_error("Enter a Deriv API token.", 400)
+
+        try:
+            accounts = fetch_accounts(access_token)
+        except DerivAPIError as exc:
+            app.logger.warning(
+                "[%s] token login failed status=%s details=%s",
+                _rid(),
+                exc.status_code,
+                exc.details,
+            )
+            if exc.status_code in (401, 403):
+                return api_error("Deriv rejected this token. Check that it is valid and has the required scopes.", 401)
+            return handle_deriv_error(exc)
+
+        session.clear()
+        session["access_token"] = access_token
+        session["token_type"] = "Bearer"
+        session["auth_method"] = "api_token"
+        session.modified = True
+
+        grouped = group_accounts(accounts)
+        return jsonify(
+            {
+                "authenticated": True,
+                "user": {
+                    "displayName": infer_display_name(accounts),
+                    "accountCount": len(accounts),
+                },
+                "accounts": grouped,
+            }
+        )
+
     @app.get("/api/accounts")
     def accounts():
         access_token = session.get("access_token")
@@ -322,12 +368,22 @@ def _rid() -> str:
 def _looks_like_pat(value: str) -> bool:
     return isinstance(value, str) and value.lower().startswith("pat_")
 
+
+def _normalize_oauth_scope(raw_scope: str) -> str:
+    if not isinstance(raw_scope, str):
+        return ""
+    tokens = [token.strip().lower() for token in raw_scope.replace('"', "").split() if token.strip()]
+    allowed = [token for token in tokens if token in {"trade", "admin"}]
+    if not allowed:
+        return ""
+    return " ".join(dict.fromkeys(allowed))
+
+
 def _resolve_authorize_app_id(app: Flask) -> str:
     if app.config.get("ENABLE_DERIV_LEGACY_APP_ID"):
         legacy_app_id = app.config.get("DERIV_LEGACY_APP_ID", "")
         return legacy_app_id.strip() if isinstance(legacy_app_id, str) else ""
-    app_id = app.config.get("DERIV_APP_ID", "")
-    return app_id.strip() if isinstance(app_id, str) else ""
+    return ""
 
 
 app = create_app()

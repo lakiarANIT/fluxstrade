@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useState } from "react";
 
 type TradingAccount = {
   accountId: string;
@@ -29,6 +29,8 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:5
 export default function Home() {
   const [data, setData] = useState<MeResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [token, setToken] = useState("");
+  const [connecting, setConnecting] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -68,8 +70,39 @@ export default function Home() {
     }
   }
 
-  function login() {
-    window.location.href = `${API_BASE_URL}/api/login`;
+  async function connectWithToken(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const trimmedToken = token.trim();
+    if (!trimmedToken) {
+      setError("Enter a Deriv API token.");
+      return;
+    }
+
+    setConnecting(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/token-login`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ token: trimmedToken })
+      });
+      const body = (await response.json()) as MeResponse;
+
+      if (!response.ok) {
+        throw new Error(body.error || "Could not connect with this Deriv token.");
+      }
+
+      setData(body);
+      setToken("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not connect with this Deriv token.");
+    } finally {
+      setConnecting(false);
+    }
   }
 
   async function logout() {
@@ -127,22 +160,41 @@ export default function Home() {
         ) : null}
 
         {!loading && !isAuthenticated ? (
-          <section className="grid gap-6 rounded-lg border border-white/80 bg-white/80 p-6 shadow-soft backdrop-blur md:grid-cols-[1.4fr_0.8fr] md:p-8">
+          <section className="grid gap-6 rounded-lg border border-white/80 bg-white/80 p-6 shadow-soft backdrop-blur md:grid-cols-[1.1fr_0.9fr] md:p-8">
             <div className="flex flex-col justify-center gap-4">
               <h2 className="text-2xl font-bold text-ink">Connect your Deriv account</h2>
               <p className="max-w-2xl text-base leading-7 text-slate-600">
-                Sign in with Deriv to view your Demo and Real Options trading account balances in one
-                private dashboard.
+                Paste a Deriv API token from your account settings to view Demo and Real Options
+                trading account balances in one private dashboard.
+              </p>
+              <p className="max-w-2xl rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900">
+                Only enter tokens you are authorised to use. Tokens with Trade, Payments, or Admin
+                scopes can control sensitive account actions.
               </p>
             </div>
-            <div className="flex items-center md:justify-end">
+            <form onSubmit={connectWithToken} className="flex flex-col justify-center gap-3">
+              <label htmlFor="deriv-token" className="text-sm font-bold text-ink">
+                Deriv API token
+              </label>
+              <input
+                id="deriv-token"
+                name="token"
+                type="password"
+                value={token}
+                onChange={(event) => setToken(event.target.value)}
+                autoComplete="off"
+                spellCheck={false}
+                placeholder="Paste token"
+                className="min-h-12 w-full rounded-md border border-slate-200 bg-white px-4 py-3 font-mono text-sm text-ink outline-none transition focus:border-coral focus:ring-4 focus:ring-coral/15"
+              />
               <button
-                onClick={login}
-                className="inline-flex min-h-12 w-full items-center justify-center rounded-md bg-coral px-6 py-3 text-base font-bold text-white shadow-soft transition hover:bg-[#f25555] sm:w-auto"
+                type="submit"
+                disabled={connecting}
+                className="inline-flex min-h-12 w-full items-center justify-center rounded-md bg-coral px-6 py-3 text-base font-bold text-white shadow-soft transition hover:bg-[#f25555] disabled:cursor-not-allowed disabled:opacity-60"
               >
-                Login with Deriv
+                {connecting ? "Connecting..." : "Connect with token"}
               </button>
-            </div>
+            </form>
           </section>
         ) : null}
 
